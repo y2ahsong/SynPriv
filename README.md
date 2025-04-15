@@ -10,7 +10,7 @@ conda activate clava
 pip install -r requirements_clava.txt
 ```
 ```bash
-conda create -n rctgan python=3.9
+conda create -n rctgan python=3.9 -y
 conda activate rctgan
 pip install -r requirements_rctgan.txt
 ```
