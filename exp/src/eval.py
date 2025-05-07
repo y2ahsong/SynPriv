@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 from sklearn.preprocessing import StandardScaler
 from sklearn.neighbors import NearestNeighbors as NN
 from tqdm import tqdm
@@ -42,7 +43,8 @@ def dcr(real, syn):
         all_dists.append(dists)
 
     all_dists = np.vstack(all_dists).flatten()
-    print(f"DCR Median: {np.median(all_dists):.4f}")
+    median_dcr = np.median(all_dists)
+    print(f"DCR Median: {median_dcr:.4f}")
     print(f"최소 거리: {np.min(all_dists):.4f}, 최대 거리: {np.max(all_dists):.4f}")
     return all_dists
 
@@ -73,13 +75,42 @@ def plot_dcr(dcr_dict):
     plt.legend()
     plt.tight_layout()
     plt.show()
+    
+def save_dcr_list(dcr_values, model, size):
+    dcr_path = Path(f"../results/dcr_{model}_train{size}.csv")
+    pd.DataFrame(dcr_values, columns=['DCR_Value']).to_csv(dcr_path, index=False)
 
-def evaluate_categorical_cap(real_table, dfs, key_fields=['Country'], sensitive_fields=['Description', 'Quantity']):
-    results = []
+# def cat_cap(real_table, dfs, key_fields=['Country'], sensitive_fields=['Description', 'Quantity']):
+#     results = []
+#     for sensitive in sensitive_fields:
+#         for name, synthetic_table in dfs.items():
+#             if name == 'Train':
+#                 continue
+#             try:
+#                 score = CategoricalCAP.compute(
+#                     real_data=real_table,
+#                     synthetic_data=synthetic_table,
+#                     key_fields=key_fields,
+#                     sensitive_fields=[sensitive]
+#                 )
+#                 results.append({
+#                     'dataset': name,
+#                     'sensitive_field': sensitive,
+#                     'CategoricalCAP': round(score, 4)
+#                 })
+#             except Exception:
+#                 results.append({
+#                     'dataset': name,
+#                     'sensitive_field': sensitive,
+#                     'CategoricalCAP': 'error'
+#                 })
+#     return pd.DataFrame(results)
+
+def cat_cap(real_table, dfs, key_fields=['Country'], sensitive_fields=['Description', 'Quantity']):
+    cap_description = np.nan
+    cap_quantity = np.nan
     for sensitive in sensitive_fields:
         for name, synthetic_table in dfs.items():
-            if name == 'Train':
-                continue
             try:
                 score = CategoricalCAP.compute(
                     real_data=real_table,
@@ -87,19 +118,42 @@ def evaluate_categorical_cap(real_table, dfs, key_fields=['Country'], sensitive_
                     key_fields=key_fields,
                     sensitive_fields=[sensitive]
                 )
-                results.append({
-                    'dataset': name,
-                    'sensitive_field': sensitive,
-                    'CategoricalCAP': round(score, 4)
-                })
+                if sensitive == 'Description':
+                    cap_description = round(score, 4)
+                elif sensitive == 'Quantity':
+                    cap_quantity = round(score, 4)
             except Exception:
-                results.append({
-                    'dataset': name,
-                    'sensitive_field': sensitive,
-                    'CategoricalCAP': 'error'
-                })
-    return pd.DataFrame(results)
+                continue
+    return cap_description, cap_quantity
 
+def plot_heatmap(results_df):
+    plt.figure(figsize=(12, 8))
+    sns.heatmap(results_df.select_dtypes(include=[np.number]), cmap='Blues', annot=True, fmt=".4f")
+    plt.show()
+
+def plot_dcr_histograms(results_df, bins=30):
+    models = results_df.index.get_level_values('Model').unique()
+    sample_sizes = results_df.index.get_level_values('Sample Size').unique()
+
+    for model in models:
+        plt.figure(figsize=(12, 6))
+        plt.title(f"{model}")
+        
+        model_df = results_df.loc[model]
+        for size in sample_sizes:
+            try:
+                dcr_file_path = f"../results/dcr_{model}_train{size}.csv"
+                dcr_values = pd.read_csv(dcr_file_path)['DCR_Value'].values
+
+                sns.histplot(dcr_values, bins=bins, kde=True, label=f"Size {size}", alpha=0.5, edgecolor='black')
+            except Exception as e:
+                print(f"Error processing model: {model}, size: {size}, error: {e}")
+
+        plt.xlabel("DCR")
+        plt.ylabel("Density")
+        plt.legend(title="Sample Size")
+        plt.grid(True, linestyle='--', alpha=0.5)
+        plt.show()
 
 # def get_common_rare_combos(df1, df2, top_n=10):
 #     df1 = df1.copy()
