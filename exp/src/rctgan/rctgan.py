@@ -6,7 +6,7 @@ import pickle
 import warnings
 
 from rctgan.errors import NotFittedError
-from rctgan.relational.rctgan import RCTGAN
+from src.rctgan.relational.rctgan import RCTGAN
 from rctgan.tabular.ctganpc import CTGAN, PC_CTGAN
 
 class RCTGAN:
@@ -111,9 +111,10 @@ class RCTGAN:
     #         sample_children=sample_children,
     #         reset_primary_keys=reset_primary_keys
     #     )
-    def sample(self, num_rows=None):
-        return self._model_instance.sample(num_rows=num_rows)
 
+    def sample(self, num_rows=None):
+        return self._model_instance.sample(num_rows)
+    
     def sample_all(self, num_rows=None, reset_primary_keys=False):
         """Sample the entire dataset.
 

@@ -522,6 +522,7 @@ class RCTGAN:
     #             if c[-7:] == '_nb_occ':
     #                 sampled_data[tab_name] = sampled_data[tab_name].drop([c], axis=1)
     #     return sampled_data
+    
     def sample(self, num_rows=None):
         sampled_data = {}
         tables_transformed = {}

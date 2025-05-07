@@ -1,2 +1,7 @@
 data/sampled/
-results/
+results/clava_*
+results/rctgan_*
+results/rtf_*
+results/tabula_*
+results/*.csv
+exp/rtf_checkpoints/
