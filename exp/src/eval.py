@@ -8,6 +8,21 @@ from tqdm import tqdm
 from pathlib import Path
 from sdmetrics.single_table import CategoricalCAP, DisclosureProtectionEstimate
 
+def calculate_metrics(real_vec, syn_vec, real, syn):
+    dcr_score = dcr(real_vec, syn_vec)
+    nndr_score = nndr(real_vec, syn_vec)
+    cap_description, cap_quantity = cat_cap(real_table=real, dfs={'syn': syn})
+    dpe_score = DisclosureProtectionEstimate.compute(
+        real_data=real,
+        synthetic_data=syn,
+        known_column_names=['Country'],
+        sensitive_column_names=['Description'],
+        num_rows_subsample=2500,
+        num_iterations=100,
+        verbose=True
+    )
+    return dcr_score, nndr_score, cap_description, cap_quantity, dpe_score
+
 def preprocess(dfs, num_cols, cat_cols):
     test_df = dfs['Test'].copy()
     test_df[num_cols] = test_df[num_cols].apply(pd.to_numeric, errors='coerce')
@@ -75,36 +90,74 @@ def plot_dcr(dcr_dict):
     plt.legend()
     plt.tight_layout()
     plt.show()
-    
+
+def plot_dcr_histograms(results_df):
+    models = results_df.index.get_level_values('Model').unique()
+    sample_sizes = results_df.index.get_level_values('Sample Size').unique()
+    bins = np.linspace(0, 2, 20)
+
+    for model in models:
+        plt.figure(figsize=(12, 6))
+        plt.title(f"{model}")
+        for size in sample_sizes:
+            dcr_file_path = f"../results/dcr_{model}_train{size}.csv"
+            dcr_values = pd.read_csv(dcr_file_path)['DCR_Value'].values
+            sns.histplot(dcr_values, bins=bins, kde=True, label=f"Size {size}", alpha=0.5, edgecolor='black')
+        plt.xlim(0, 2)
+        plt.legend(title="Sample Size")
+        plt.grid(True, linestyle='--', alpha=0.5)
+        plt.show()
+        
+def plot_dcr_kde(results_df):
+    models = results_df.index.get_level_values('Model').unique()
+    sample_sizes = results_df.index.get_level_values('Sample Size').unique()
+
+    for model in models:
+        plt.figure(figsize=(12, 6))
+        plt.title(f"{model}")
+        
+        for size in sample_sizes:
+            try:
+                dcr_file_path = f"../results/dcr_{model}_train{size}.csv"
+                dcr_values = pd.read_csv(dcr_file_path)['DCR_Value'].values
+                sns.kdeplot(dcr_values, label=f"Size {size}", fill=True, alpha=0.3)
+            except Exception as e:
+                print(f"Error processing model: {model}, size: {size}, error: {e}")
+        plt.xlim(0, 2)
+        plt.legend(title="Sample Size")
+        plt.grid(True, linestyle='--', alpha=0.5)
+        plt.show()
+
+def plot_dcr_boxplot(results_df):
+    models = results_df.index.get_level_values('Model').unique()
+    sample_sizes = results_df.index.get_level_values('Sample Size').unique()
+
+    for model in models:
+        plt.figure(figsize=(12, 6))
+        plt.title(f"{model}")
+        dcr_data = []
+
+        for size in sample_sizes:
+            try:
+                dcr_file_path = f"../results/dcr_{model}_train{size}.csv"
+                dcr_values = pd.read_csv(dcr_file_path)['DCR_Value'].values
+                dcr_data.append(pd.DataFrame({'DCR': dcr_values, 'Sample Size': str(size)}))
+            except Exception as e:
+                print(f"Error processing model: {model}, size: {size}, error: {e}")
+
+        if dcr_data:
+            combined_df = pd.concat(dcr_data, ignore_index=True)
+            sns.boxplot(data=combined_df, x='Sample Size', y='DCR')
+            plt.xlabel("Sample Size")
+            plt.ylabel("DCR")
+            plt.ylim(0, 2)
+            plt.grid(True, linestyle='--', alpha=0.5)
+            plt.show()
+
+
 def save_dcr_list(dcr_values, model, size):
     dcr_path = Path(f"../results/dcr_{model}_train{size}.csv")
     pd.DataFrame(dcr_values, columns=['DCR_Value']).to_csv(dcr_path, index=False)
-
-# def cat_cap(real_table, dfs, key_fields=['Country'], sensitive_fields=['Description', 'Quantity']):
-#     results = []
-#     for sensitive in sensitive_fields:
-#         for name, synthetic_table in dfs.items():
-#             if name == 'Train':
-#                 continue
-#             try:
-#                 score = CategoricalCAP.compute(
-#                     real_data=real_table,
-#                     synthetic_data=synthetic_table,
-#                     key_fields=key_fields,
-#                     sensitive_fields=[sensitive]
-#                 )
-#                 results.append({
-#                     'dataset': name,
-#                     'sensitive_field': sensitive,
-#                     'CategoricalCAP': round(score, 4)
-#                 })
-#             except Exception:
-#                 results.append({
-#                     'dataset': name,
-#                     'sensitive_field': sensitive,
-#                     'CategoricalCAP': 'error'
-#                 })
-#     return pd.DataFrame(results)
 
 def cat_cap(real_table, dfs, key_fields=['Country'], sensitive_fields=['Description', 'Quantity']):
     cap_description = np.nan
@@ -138,8 +191,6 @@ def plot_dcr_histograms(results_df, bins=30):
     for model in models:
         plt.figure(figsize=(12, 6))
         plt.title(f"{model}")
-        
-        model_df = results_df.loc[model]
         for size in sample_sizes:
             try:
                 dcr_file_path = f"../results/dcr_{model}_train{size}.csv"
